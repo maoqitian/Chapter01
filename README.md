@@ -1,46 +1,52 @@
-Chapter01-GEEKTIME
-======
-例子里集成了[Breakpad](https://github.com/google/breakpad) 来获取发生 native crash 时候的系统信息和线程堆栈信息。
+>本项目clone于[极客时间Android开发高手课例子](https://github.com/AndroidAdvanceWithGeektime/Chapter01)，该项目集成了[Breakpad](https://github.com/google/breakpad) 来获取发生 native crash 时候的系统信息和线程堆栈信息
 
-注意：由于例子里提供的 minidump_stackwalker 可能由于环境不同，无法启动，建议同学自行编译来获取工具，具体教程可见https://github.com/google/breakpad
+## 对原项目更新地方
 
+- 重新放入最新版本的 [Breakpad](https://github.com/google/breakpad) 项目源码
+> 原项目不做最新源码引入更改无法在真机上获取dump文件
 
-编译环境
-=======
-Android Studio 3.2
-CMAKE
-NDK(使用ndk 16-19版本)
+- 重新编译生成 minidump_stackwalker文件
 
-项目构建
-=======
+- 编译环境
 
-例子采用 [CMAKE](https://developer.android.com/ndk/guides/cmake) 来构建 breakpad  库, 项目可直接导入 AndroidStudio 运行
+依赖库、IDE | version
+---|---
+NDK | 21.0.6113669
+Gradle | 7.0.2
+Androidstudio | Arctic Fox(2020.3.1)
 
-例子支持`armeabi-v7a`,`arm64-v8a`,`x86` 三种平台。
+## 分析过程
 
-1. 点击`crash`按钮应用会发生一个native崩溃
+### 运行项目
+- 运行项目，点击界面 crash 项目崩溃，会在 /data/data/com.dodola.breakpad/cache/crashDump目录下生成对应 dump 文件，本项目根目录也上传了整个 dump 文件（a9521cfd-1aa8-4192-02da2290-600b74f6.dmp）
 
-2. 生成的 crash信息，如果授予Sdcard权限会优先存放在`/sdcard/crashDump`下，便于我们做进一步的分析。反之会放到目录 `/data/data/com.dodola.breakpad/files/crashDump`
+![dump文件生成](https://github.com/maoqitian/MaoMdPhoto/raw/master/AndroidNativeCrash/dump%E6%96%87%E4%BB%B6%E7%94%9F%E6%88%90.png)
 
+### 重新编译 minidump_stackwalker
+- 我们需要使用 minidump_stackwalker 来分析上一步生成的 
+- 原项目 minidump_stackwalker 在 mac 下使用会直接报错，所以需要重新clone [Breakpad](https://github.com/google/breakpad)项目
+- 在该项目根目录下自行编译
 
-![截图](screen.png)
-
-Dump 日志分析
-========
-
-1. 将抓取到的日志拉取到本地中
-2. 使用例子中提供的 `tools/mac/minidump_stackwalker` 工具来根据 minidump 文件生成堆栈跟踪log
 ```
-	 ./tools/mac/minidump_stackwalk crashDump/***.dmp >crashLog.txt 
+./configure && make
 ```
-	 
-3. 打开文件后可以看到一个详细的 crash 日志，如下
+- 本项目 tools/mac/minidump_stackwalker 文件已经重新编译好的，适用于 mac 版本，其他其他朋友可自行编译
+- 编译完成找到 minidump_stackwalker
+![重新编译生成minidump_stackwalker](https://github.com/maoqitian/MaoMdPhoto/raw/master/AndroidNativeCrash/%E9%87%8D%E6%96%B0%E7%BC%96%E8%AF%91%E7%94%9F%E6%88%90%E7%9A%84minidump_stackwalker.png)
+
+### 处理 dump 文件，获取crash日志
+
+- 使用上一步生成的 minidump_stackwalker 工具
+
+```
+tools/mac/minidump_stackwalk a9521cfd-1aa8-4192-02da2290-600b74f6.dmp >crash.txt
+```
+- 在当前目录生成 crash.txt 文件
 
 ```
 Operating system: Android
-                  0.0.0 Linux 4.4.78-perf-gdd4cbe9-00529-g1a92c1c #1 SMP PREEMPT Thu Nov 22 03:44:52 CST 2018 armv8l
-CPU: arm
-     ARMv1 Qualcomm part(0x51008010) features: half,thumb,fastmult,vfpv2,edsp,neon,vfpv3,tls,vfpv4,idiva,idivt
+                  0.0.0 Linux 4.19.113-perf-g5b8235a #1 SMP PREEMPT Tue Aug 31 02:36:57 CST 2021 aarch64
+CPU: arm64
      8 CPUs
 
 GPU: UNKNOWN
@@ -49,90 +55,35 @@ Crash reason:  SIGSEGV /SEGV_MAPERR
 Crash address: 0x0
 Process uptime: not available
 
-Thread 0 (crashed)//crash 发生时候的线程
- 0  libcrash-lib.so + 0x77e//发生 crash 的位置和寄存器信息
-     r0 = 0x00000000    r1 = 0x00000001    r2 = 0xff80f2bc    r3 = 0xebe31230
-     r4 = 0xec2850d4    r5 = 0x00000001    r6 = 0x00000000    r7 = 0xff80f2a8
-     r8 = 0x00000056    r9 = 0xebe6f000   r10 = 0xff80f3a8   r12 = 0xcf1d8fd8
-     fp = 0xff80f334    sp = 0xff80f294    lr = 0xcf1d579b    pc = 0xcf1d577e
-    Found by: given as instruction pointer in context
-
-    Stack contents:
-     ff80f294 00 00 00 00 30 12 e3 eb bc f2 80 ff bc f2 80 ff  ....0...........
-     ff80f2a4 30 12 e3 eb 98 f5 80 ff 65 40 32 cf              0.......e@2.    
-    Possible instruction pointers:
-
- 1  base.odex + 0x9063
-     sp = 0xff80f2b0    pc = 0xcf324065
-    Found by: stack scanning
-
-    Stack contents:
-     ff80f2b0 d4 50 28 ec                                      .P(.            
-    Possible instruction pointers:
-
- 2  dalvik-LinearAlloc (deleted) + 0xd2
-     sp = 0xff80f2b4    pc = 0xec2850d4
-    Found by: stack scanning
-
-    Stack contents:
-     ff80f2b4 74 05 81 ff 01 00 00 00 68 0c 84 13              t.......h...    
-    Possible instruction pointers:
-
- 3  dalvik-main space (region space) (deleted) + 0xc40c66
-     sp = 0xff80f2c0    pc = 0x13840c68
-    Found by: stack scanning
-
-    Stack contents:
-     ff80f2c0 07 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-     ff80f2d0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-     ff80f2e0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-     ff80f2f0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-     ff80f300 00 00 00 00 01 00 00 00 00 00 00 00 98 f5 80 ff  ................
-     ff80f310 56 00 00 00 a8 f3 80 ff 34 f3 80 ff e3 7f b5 eb  V.......4.......
-    Possible instruction pointers:
-
- 4  libart.so + 0x3e1fe1
-     sp = 0xff80f320    pc = 0xebb57fe3
-    Found by: stack scanning
-
-    Stack contents:
-     ff80f320 00 00 00 00 68 0c 84 13                          ....h...        
-    Possible instruction pointers:
+Thread 0 (crashed)
+ 0  libcrash-lib.so + 0x650
+     x0 = 0xb400007d8dee43c0    x1 = 0x0000007fde2ce504
+     x2 = 0xb400007d00430000    x3 = 0x0000007fde2cd258
+     x4 = 0xb400007cf16a2a10    x5 = 0xe9854b1ddffe04d5
+     x6 = 0x0000007fde2cd1e0    x7 = 0x0000007cfd5fa1fc
+     x8 = 0x0000000000000000    x9 = 0x0000000000000001
+    x10 = 0x0000000000430000   x11 = 0x0000007d80000000
+    x12 = 0x000000004119a1b0   x13 = 0x1dcfafe57ab59443
+    x14 = 0x0000000000000006   x15 = 0xffffffffffffffff
+    x16 = 0x0000007cf32cbfe8   x17 = 0x0000007cf32ca63c
+   ........
 ```
 
-4. 符号解析，可以使用 ndk 中提供的`addr2line`来根据地址进行一个符号反解的过程,该工具在 
-`$NDK_HOME/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-addr2line`
- 
- 注意：此处要注意一下平台，如果是 arm64位的 so，解析是需要使用 `aarch64-linux-android-4.9`下的工具链
-```
-arm-linux-androideabi-addr2line -f -C -e sample/build/intermediates/transforms/mergeJniLibs/debug/0/lib/armeabi-v7a/libcrash-lib.so 0x77e                           
-//输出结果如下
-Crash()
+### 分析找到 crash 发生的方法
+
+- 上一步可以得到对应的 CPU 架构是 arm64
+- 发生crash原因 SIGSEGV /SEGV_MAPERR，常用型号类型可看这篇文章（[Android 平台 Native 代码的崩溃捕获机制及实现
+](https://mp.weixin.qq.com/s/g-WzYF3wWAljok1XjPoo7w)）
+- 主要关键为以下信息
 
 ```
-补充内容
-=======
-
-关于在 x86模拟器下无法生成 crash 日志问题的解决方法
-
-在 x86 模拟器下无法生成日志的解决方法如下：
-1. 将 ndk 切换到 16b，下载地址： https://developer.android.com/ndk/downloads/older_releases?hl=zh-cn 
-mac 版：https://dl.google.com/android/repository/android-ndk-r16b-darwin-x86_64.zip
-2. 在 Androidstudio 里设置 ndk 路径为ndk-16b的路径
-3. 在 sample 和 breakpad-build 的 build.gradle 配置里增加如下配置
+Thread 0 (crashed)
+ 0  libcrash-lib.so + 0x650
 ```
- externalNativeBuild {
-            cmake {
-                cppFlags "-std=c++11"
-                arguments "-DANDROID_TOOLCHAIN=gcc"
-            }
-        }
-
+- 代表发生crash的动态链接库，还有对应的符号，符号解析，可以使用 ndk 中提供的addr2line来根据地址进行一个符号反解，前面我们知道是arm64 CPU，所以使用NDK的aarch64-linux-android-4.9目录下的addr2line，注意需要添加上 
+-f -C -e 命令
 ```
-
-
-
-相关内容
-=======
-https://github.com/google/breakpad
-例子里只提供了 Mac 的工具，如果需要其他平台的工具，可以去编译源码获得，可以参照 breakpad 项目的说明文档来编译获取。
+/xxxxx/android-ndk-r21b/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/bin/aarch64-linux-android-addr2line -f -C -e /xxxxxx/sample/build/intermediates/cmake/debug/obj/arm64-v8a/libcrash-lib.so 0x650
+```
+- 如下最后打印的结果，找出crash方法
+![找出crash方法](https://github.com/maoqitian/MaoMdPhoto/raw/master/AndroidNativeCrash/%E6%89%BE%E5%87%BAcrash%E6%96%B9%E6%B3%95.png)
