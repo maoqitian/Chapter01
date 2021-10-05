@@ -36,6 +36,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "common/path_helper.h"
 #include "common/scoped_ptr.h"
 #include "google_breakpad/processor/minidump.h"
 #include "processor/logging.h"
@@ -91,7 +92,7 @@ static void DumpRawStream(Minidump *minidump,
     // in compatibility warnings.
     uint32_t int_remaining = remaining;
     printf("%.*s", int_remaining, &contents[current_offset]);
-    char *next_null = reinterpret_cast<char *>(
+    char *next_null = reinterpret_cast<char*>(
         memchr(&contents[current_offset], 0, remaining));
     if (next_null == NULL)
       break;
@@ -233,7 +234,7 @@ Usage(int argc, char *argv[], bool error) {
           "  <minidump> should be a minidump.\n"
           "  -x:\t Display memory in a hexdump like format\n"
           "  -h:\t Usage\n",
-          argv[0]);
+          google_breakpad::BaseName(argv[0]).c_str());
 }
 
 //=============================================================================
@@ -241,7 +242,7 @@ static void
 SetupOptions(int argc, char *argv[], Options *options) {
   int ch;
 
-  while ((ch = getopt(argc, (char * const *)argv, "xh")) != -1) {
+  while ((ch = getopt(argc, (char * const*)argv, "xh")) != -1) {
     switch (ch) {
       case 'x':
         options->hexdump = true;

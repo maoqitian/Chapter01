@@ -1,0 +1,7 @@
+Executable : /Users/maoqitian/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja
+arguments : 
+-C
+/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/x86
+breakpad-core
+jvmArgs : 
+

@@ -1,0 +1,57 @@
+{
+  "stringTable": {},
+  "buildFiles": [
+    "/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/src/main/cpp/CMakeLists.txt",
+    "/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/src/main/cpp/external/libbreakpad/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/maoqitian/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja",
+      "-C",
+      "/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/maoqitian/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja",
+    "-C",
+    "/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "breakpad-Debug-arm64-v8a": {
+      "buildCommandComponents": [
+        "/Users/maoqitian/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja",
+        "-C",
+        "/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a",
+        "breakpad"
+      ],
+      "buildType": "debug",
+      "abi": "arm64-v8a",
+      "artifactName": "breakpad",
+      "output": "/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a/external/libbreakpad/libbreakpad.a"
+    },
+    "breakpad-core-Debug-arm64-v8a": {
+      "buildCommandComponents": [
+        "/Users/maoqitian/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja",
+        "-C",
+        "/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a",
+        "breakpad-core"
+      ],
+      "buildType": "debug",
+      "abi": "arm64-v8a",
+      "artifactName": "breakpad-core",
+      "output": "/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/build/intermediates/cxx/Debug/6e2h1263/obj/arm64-v8a/libbreakpad-core.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {},
+  "cFileExtensions": [
+    "c",
+    "S"
+  ],
+  "cppFileExtensions": [
+    "cc",
+    "cpp"
+  ]
+}

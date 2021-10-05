@@ -54,6 +54,7 @@
 
 #include "processor/range_map-inl.h"
 
+#include "common/macros.h"
 #include "common/scoped_ptr.h"
 #include "common/stdio_wrapper.h"
 #include "google_breakpad/processor/dump_context.h"
@@ -61,22 +62,6 @@
 #include "processor/basic_code_modules.h"
 #include "processor/convert_old_arm64_context.h"
 #include "processor/logging.h"
-
-// All intentional fallthroughs in breakpad are in this file, so define
-// this macro locally.
-// If you ever move this to a .h file, make sure it's defined in a
-// private header file: clang suggests the first macro expanding to
-// [[clang::fallthrough]] in its diagnostics, so if BP_FALLTHROUGH
-// is visible in code depending on breakpad, clang would suggest
-// BP_FALLTHROUGH for code depending on breakpad, instead of the
-// client code's own fallthrough macro.
-// TODO(thakis): Once everyone uses C++17, use its [[fallthrough]] instead.
-#if defined(__clang__)
-#define BP_FALLTHROUGH [[clang::fallthrough]]
-#else
-#define BP_FALLTHROUGH
-#endif
-
 
 namespace google_breakpad {
 
@@ -1178,7 +1163,6 @@ bool MinidumpContext::Read(uint32_t expected_size) {
         BPLOG(INFO) << "MinidumpContext unknown context type " <<
           HexString(cpu_type);
         return false;
-        break;
       }
     }
     SetContextFlags(context_flags);
@@ -1626,7 +1610,7 @@ MinidumpContext* MinidumpThread::GetContext() {
 }
 
 
-bool MinidumpThread::GetThreadID(uint32_t *thread_id) const {
+bool MinidumpThread::GetThreadID(uint32_t* thread_id) const {
   BPLOG_IF(ERROR, !thread_id) << "MinidumpThread::GetThreadID requires "
                                  "|thread_id|";
   assert(thread_id);
@@ -1988,14 +1972,14 @@ string MinidumpModule::code_identifier() const {
   if (!has_debug_info_)
     return "";
 
-  MinidumpSystemInfo *minidump_system_info = minidump_->GetSystemInfo();
+  MinidumpSystemInfo* minidump_system_info = minidump_->GetSystemInfo();
   if (!minidump_system_info) {
     BPLOG(ERROR) << "MinidumpModule code_identifier requires "
                     "MinidumpSystemInfo";
     return "";
   }
 
-  const MDRawSystemInfo *raw_system_info = minidump_system_info->system_info();
+  const MDRawSystemInfo* raw_system_info = minidump_system_info->system_info();
   if (!raw_system_info) {
     BPLOG(ERROR) << "MinidumpModule code_identifier requires MDRawSystemInfo";
     return "";
@@ -2016,6 +2000,7 @@ string MinidumpModule::code_identifier() const {
     }
 
     case MD_OS_ANDROID:
+    case MD_OS_FUCHSIA:
     case MD_OS_LINUX: {
       // If ELF CodeView data is present, return the debug id.
       if (cv_record_ && cv_record_signature_ == MD_CVINFOELF_SIGNATURE) {
@@ -2107,7 +2092,7 @@ string MinidumpModule::debug_file() const {
     // No usable CodeView record.  Try the miscellaneous debug record.
     if (misc_record_) {
       const MDImageDebugMisc* misc_record =
-          reinterpret_cast<const MDImageDebugMisc *>(&(*misc_record_)[0]);
+          reinterpret_cast<const MDImageDebugMisc*>(&(*misc_record_)[0]);
       if (!misc_record->unicode) {
         // If it's not Unicode, just stuff it into the string.  It's unclear
         // if misc_record->data is 0-terminated, so use an explicit size.
@@ -2563,7 +2548,7 @@ void MinidumpModule::Print() {
          code_identifier().c_str());
 
   uint32_t cv_record_size;
-  const uint8_t *cv_record = GetCVRecord(&cv_record_size);
+  const uint8_t* cv_record = GetCVRecord(&cv_record_size);
   if (cv_record) {
     if (cv_record_signature_ == MD_CVINFOPDB70_SIGNATURE) {
       const MDCVInfoPDB70* cv_record_70 =
@@ -2667,7 +2652,11 @@ MinidumpModuleList::MinidumpModuleList(Minidump* minidump)
       range_map_(new RangeMap<uint64_t, unsigned int>()),
       modules_(NULL),
       module_count_(0) {
-  range_map_->SetEnableShrinkDown(minidump_->IsAndroid());
+  MDOSPlatform platform;
+  if (minidump_->GetPlatform(&platform) &&
+      (platform == MD_OS_ANDROID || platform == MD_OS_LINUX)) {
+    range_map_->SetMergeStrategy(MergeRangeStrategy::kTruncateLower);
+  }
 }
 
 
@@ -2931,16 +2920,12 @@ const MinidumpModule* MinidumpModuleList::GetModuleAtIndex(
 
 
 const CodeModules* MinidumpModuleList::Copy() const {
-  return new BasicCodeModules(this);
+  return new BasicCodeModules(this, range_map_->GetMergeStrategy());
 }
 
 vector<linked_ptr<const CodeModule> >
 MinidumpModuleList::GetShrunkRangeModules() const {
   return vector<linked_ptr<const CodeModule> >();
-}
-
-bool MinidumpModuleList::IsModuleShrinkEnabled() const {
-  return range_map_->IsShrinkDownEnabled();
 }
 
 void MinidumpModuleList::Print() {
@@ -3229,7 +3214,7 @@ bool MinidumpException::Read(uint32_t expected_size) {
 }
 
 
-bool MinidumpException::GetThreadID(uint32_t *thread_id) const {
+bool MinidumpException::GetThreadID(uint32_t* thread_id) const {
   BPLOG_IF(ERROR, !thread_id) << "MinidumpException::GetThreadID requires "
                                  "|thread_id|";
   assert(thread_id);
@@ -3499,6 +3484,10 @@ string MinidumpSystemInfo::GetOS() {
       os = "nacl";
       break;
 
+    case MD_OS_FUCHSIA:
+      os = "fuchsia";
+      break;
+
     default:
       BPLOG(ERROR) << "MinidumpSystemInfo unknown OS for platform " <<
                       HexString(system_info_.platform_id);
@@ -3613,8 +3602,8 @@ void MinidumpSystemInfo::Print() {
   }
 
   printf("MDRawSystemInfo\n");
-  printf("  processor_architecture                     = 0x%x\n",
-         system_info_.processor_architecture);
+  printf("  processor_architecture                     = 0x%x (%s)\n",
+         system_info_.processor_architecture, GetCPU().c_str());
   printf("  processor_level                            = %d\n",
          system_info_.processor_level);
   printf("  processor_revision                         = 0x%x\n",
@@ -3629,8 +3618,8 @@ void MinidumpSystemInfo::Print() {
          system_info_.minor_version);
   printf("  build_number                               = %d\n",
          system_info_.build_number);
-  printf("  platform_id                                = 0x%x\n",
-         system_info_.platform_id);
+  printf("  platform_id                                = 0x%x (%s)\n",
+         system_info_.platform_id, GetOS().c_str());
   printf("  csd_version_rva                            = 0x%x\n",
          system_info_.csd_version_rva);
   printf("  suite_mask                                 = 0x%x\n",
@@ -3709,14 +3698,14 @@ string MinidumpUnloadedModule::code_identifier() const {
     return "";
   }
 
-  MinidumpSystemInfo *minidump_system_info = minidump_->GetSystemInfo();
+  MinidumpSystemInfo* minidump_system_info = minidump_->GetSystemInfo();
   if (!minidump_system_info) {
     BPLOG(ERROR) << "MinidumpUnloadedModule code_identifier requires "
                     "MinidumpSystemInfo";
     return "";
   }
 
-  const MDRawSystemInfo *raw_system_info = minidump_system_info->system_info();
+  const MDRawSystemInfo* raw_system_info = minidump_system_info->system_info();
   if (!raw_system_info) {
     BPLOG(ERROR) << "MinidumpUnloadedModule code_identifier requires "
                  << "MDRawSystemInfo";
@@ -3870,7 +3859,7 @@ MinidumpUnloadedModuleList::MinidumpUnloadedModuleList(Minidump* minidump)
     range_map_(new RangeMap<uint64_t, unsigned int>()),
     unloaded_modules_(NULL),
     module_count_(0) {
-  range_map_->SetEnableShrinkDown(true);
+  range_map_->SetMergeStrategy(MergeRangeStrategy::kTruncateLower);
 }
 
 MinidumpUnloadedModuleList::~MinidumpUnloadedModuleList() {
@@ -4048,16 +4037,12 @@ MinidumpUnloadedModuleList::GetModuleAtIndex(
 }
 
 const CodeModules* MinidumpUnloadedModuleList::Copy() const {
-  return new BasicCodeModules(this);
+  return new BasicCodeModules(this, range_map_->GetMergeStrategy());
 }
 
 vector<linked_ptr<const CodeModule>>
 MinidumpUnloadedModuleList::GetShrunkRangeModules() const {
   return vector<linked_ptr<const CodeModule> >();
-}
-
-bool MinidumpUnloadedModuleList::IsModuleShrinkEnabled() const {
-  return range_map_->IsShrinkDownEnabled();
 }
 
 
@@ -4370,7 +4355,7 @@ bool MinidumpBreakpadInfo::Read(uint32_t expected_size) {
 }
 
 
-bool MinidumpBreakpadInfo::GetDumpThreadID(uint32_t *thread_id) const {
+bool MinidumpBreakpadInfo::GetDumpThreadID(uint32_t* thread_id) const {
   BPLOG_IF(ERROR, !thread_id) << "MinidumpBreakpadInfo::GetDumpThreadID "
                                  "requires |thread_id|";
   assert(thread_id);
@@ -4391,7 +4376,7 @@ bool MinidumpBreakpadInfo::GetDumpThreadID(uint32_t *thread_id) const {
 }
 
 
-bool MinidumpBreakpadInfo::GetRequestingThreadID(uint32_t *thread_id)
+bool MinidumpBreakpadInfo::GetRequestingThreadID(uint32_t* thread_id)
     const {
   BPLOG_IF(ERROR, !thread_id) << "MinidumpBreakpadInfo::GetRequestingThreadID "
                                  "requires |thread_id|";
@@ -4709,7 +4694,7 @@ void MinidumpMemoryInfoList::Print() {
 // MinidumpLinuxMaps
 //
 
-MinidumpLinuxMaps::MinidumpLinuxMaps(Minidump *minidump)
+MinidumpLinuxMaps::MinidumpLinuxMaps(Minidump* minidump)
     : MinidumpObject(minidump) {
 }
 
@@ -4725,7 +4710,7 @@ void MinidumpLinuxMaps::Print() const {
 // MinidumpLinuxMapsList
 //
 
-MinidumpLinuxMapsList::MinidumpLinuxMapsList(Minidump *minidump)
+MinidumpLinuxMapsList::MinidumpLinuxMapsList(Minidump* minidump)
     : MinidumpStream(minidump),
       maps_(NULL),
       maps_count_(0) {
@@ -4740,7 +4725,7 @@ MinidumpLinuxMapsList::~MinidumpLinuxMapsList() {
   }
 }
 
-const MinidumpLinuxMaps *MinidumpLinuxMapsList::GetLinuxMapsForAddress(
+const MinidumpLinuxMaps* MinidumpLinuxMapsList::GetLinuxMapsForAddress(
     uint64_t address) const {
   if (!valid_ || (maps_ == NULL)) {
     BPLOG(ERROR) << "Invalid MinidumpLinuxMapsList for GetLinuxMapsForAddress";
@@ -4762,7 +4747,7 @@ const MinidumpLinuxMaps *MinidumpLinuxMapsList::GetLinuxMapsForAddress(
   return NULL;
 }
 
-const MinidumpLinuxMaps *MinidumpLinuxMapsList::GetLinuxMapsAtIndex(
+const MinidumpLinuxMaps* MinidumpLinuxMapsList::GetLinuxMapsAtIndex(
     unsigned int index) const {
   if (!valid_ || (maps_ == NULL)) {
     BPLOG(ERROR) << "Invalid MinidumpLinuxMapsList for GetLinuxMapsAtIndex";
@@ -4997,12 +4982,9 @@ void MinidumpCrashpadInfo::Print() {
          MDGUIDToString(crashpad_info_.report_id).c_str());
   printf("  client_id = %s\n",
          MDGUIDToString(crashpad_info_.client_id).c_str());
-  for (std::map<std::string, std::string>::const_iterator iterator =
-           simple_annotations_.begin();
-       iterator != simple_annotations_.end();
-       ++iterator) {
-    printf("  simple_annotations[\"%s\"] = %s\n",
-           iterator->first.c_str(), iterator->second.c_str());
+  for (const auto& annot : simple_annotations_) {
+    printf("  simple_annotations[\"%s\"] = %s\n", annot.first.c_str(),
+           annot.second.c_str());
   }
   for (uint32_t module_index = 0;
        module_index < module_crashpad_info_links_.size();
@@ -5011,23 +4993,18 @@ void MinidumpCrashpadInfo::Print() {
            module_index, module_crashpad_info_links_[module_index]);
     printf("  module_list[%d].version = %d\n",
            module_index, module_crashpad_info_[module_index].version);
-    for (uint32_t annotation_index = 0;
-         annotation_index <
-             module_crashpad_info_list_annotations_[module_index].size();
+    const auto& list_annots =
+        module_crashpad_info_list_annotations_[module_index];
+    for (uint32_t annotation_index = 0; annotation_index < list_annots.size();
          ++annotation_index) {
-      printf("  module_list[%d].list_annotations[%d] = %s\n",
-             module_index,
-             annotation_index,
-             module_crashpad_info_list_annotations_
-                 [module_index][annotation_index].c_str());
+      printf("  module_list[%d].list_annotations[%d] = %s\n", module_index,
+             annotation_index, list_annots[annotation_index].c_str());
     }
-    for (std::map<std::string, std::string>::const_iterator iterator =
-             module_crashpad_info_simple_annotations_[module_index].begin();
-         iterator !=
-             module_crashpad_info_simple_annotations_[module_index].end();
-         ++iterator) {
+    const auto& simple_annots =
+        module_crashpad_info_simple_annotations_[module_index];
+    for (const auto& annot : simple_annots) {
       printf("  module_list[%d].simple_annotations[\"%s\"] = %s\n",
-             module_index, iterator->first.c_str(), iterator->second.c_str());
+             module_index, annot.first.c_str(), annot.second.c_str());
     }
   }
 
@@ -5104,7 +5081,7 @@ bool Minidump::Open() {
   return true;
 }
 
-bool Minidump::GetContextCPUFlagsFromSystemInfo(uint32_t *context_cpu_flags) {
+bool Minidump::GetContextCPUFlagsFromSystemInfo(uint32_t* context_cpu_flags) {
   // Initialize output parameters
   *context_cpu_flags = 0;
 
@@ -5380,12 +5357,17 @@ MinidumpMemoryInfoList* Minidump::GetMemoryInfoList() {
   return GetStream(&memory_info_list);
 }
 
-MinidumpLinuxMapsList *Minidump::GetLinuxMapsList() {
-  MinidumpLinuxMapsList *linux_maps_list;
+MinidumpLinuxMapsList* Minidump::GetLinuxMapsList() {
+  MinidumpLinuxMapsList* linux_maps_list;
   return GetStream(&linux_maps_list);
 }
 
 bool Minidump::IsAndroid() {
+  MDOSPlatform platform;
+  return GetPlatform(&platform) && platform == MD_OS_ANDROID;
+}
+
+bool Minidump::GetPlatform(MDOSPlatform* platform) {
   // Save the current stream position
   off_t saved_position = Tell();
   if (saved_position == -1) {
@@ -5400,7 +5382,11 @@ bool Minidump::IsAndroid() {
     return false;
   }
 
-  return system_info && system_info->platform_id == MD_OS_ANDROID;
+  if (!system_info) {
+    return false;
+  }
+  *platform = static_cast<MDOSPlatform>(system_info->platform_id);
+  return true;
 }
 
 MinidumpCrashpadInfo* Minidump::GetCrashpadInfo() {

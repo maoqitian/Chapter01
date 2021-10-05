@@ -32,24 +32,85 @@
 // module.cc: Implement google_breakpad::Module.  See module.h.
 
 #include "common/module.h"
+#include "common/string_view.h"
 
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <utility>
 
 namespace google_breakpad {
 
 using std::dec;
 using std::hex;
+using std::unique_ptr;
 
+Module::InlineOrigin* Module::InlineOriginMap::GetOrCreateInlineOrigin(
+    uint64_t offset,
+    StringView name) {
+  uint64_t specification_offset = references_[offset];
+  // Find the root offset.
+  auto iter = references_.find(specification_offset);
+  while (iter != references_.end() &&
+         specification_offset != references_[specification_offset]) {
+    specification_offset = references_[specification_offset];
+    iter = references_.find(specification_offset);
+  }
+  if (inline_origins_.find(specification_offset) != inline_origins_.end()) {
+    if (inline_origins_[specification_offset]->name == "<name omitted>") {
+      inline_origins_[specification_offset]->name = name;
+    }
+    return inline_origins_[specification_offset];
+  }
+  inline_origins_[specification_offset] = new Module::InlineOrigin(name);
+  return inline_origins_[specification_offset];
+}
 
-Module::Module(const string &name, const string &os,
-               const string &architecture, const string &id,
-               const string &code_id /* = "" */) :
+void Module::InlineOriginMap::SetReference(uint64_t offset,
+                                           uint64_t specification_offset) {
+  // If we haven't seen this doesn't exist in reference map, always add it.
+  if (references_.find(offset) == references_.end()) {
+    references_[offset] = specification_offset;
+    return;
+  }
+  // If offset equals specification_offset and offset exists in
+  // references_, there is no need to update the references_ map.
+  // This early return is necessary because the call to erase in following if
+  // will remove the entry of specification_offset in inline_origins_. If
+  // specification_offset equals to references_[offset], it might be
+  // duplicate debug info.
+  if (offset == specification_offset ||
+      specification_offset == references_[offset])
+    return;
+
+  // Fix up mapping in inline_origins_.
+  auto remove = inline_origins_.find(references_[offset]);
+  if (remove != inline_origins_.end()) {
+    inline_origins_[specification_offset] = std::move(remove->second);
+    inline_origins_.erase(remove);
+  }
+  references_[offset] = specification_offset;
+}
+
+void Module::InlineOriginMap::AssignFilesToInlineOrigins(
+    const vector<uint64_t>& inline_origin_offsets,
+    Module::File* file) {
+  for (uint64_t offset : inline_origin_offsets)
+    if (references_.find(offset) != references_.end()) {
+      auto origin = inline_origins_.find(references_[offset]);
+      if (origin != inline_origins_.end())
+        origin->second->file = file;
+    }
+}
+
+Module::Module(const string& name, const string& os,
+               const string& architecture, const string& id,
+               const string& code_id /* = "" */) :
     name_(name),
     os_(os),
     architecture_(architecture),
@@ -64,7 +125,7 @@ Module::~Module() {
        it != functions_.end(); ++it) {
     delete *it;
   }
-  for (vector<StackFrameEntry *>::iterator it = stack_frame_entries_.begin();
+  for (vector<StackFrameEntry*>::iterator it = stack_frame_entries_.begin();
        it != stack_frame_entries_.end(); ++it) {
     delete *it;
   }
@@ -76,10 +137,18 @@ void Module::SetLoadAddress(Address address) {
   load_address_ = address;
 }
 
-void Module::AddFunction(Function *function) {
+void Module::SetAddressRanges(const vector<Range>& ranges) {
+  address_ranges_ = ranges;
+}
+
+bool Module::AddFunction(Function* function) {
   // FUNC lines must not hold an empty name, so catch the problem early if
   // callers try to add one.
   assert(!function->name.empty());
+
+  if (!AddressIsInModule(function->address)) {
+    return false;
+  }
 
   // FUNCs are better than PUBLICs as they come with sizes, so remove an extern
   // with the same address if present.
@@ -112,21 +181,24 @@ void Module::AddFunction(Function *function) {
   if (!ret.second && (*ret.first != function)) {
     // Free the duplicate that was not inserted because this Module
     // now owns it.
-    delete function;
+    return false;
   }
+  return true;
 }
 
-void Module::AddFunctions(vector<Function *>::iterator begin,
-                          vector<Function *>::iterator end) {
-  for (vector<Function *>::iterator it = begin; it != end; ++it)
-    AddFunction(*it);
-}
+void Module::AddStackFrameEntry(StackFrameEntry* stack_frame_entry) {
+  if (!AddressIsInModule(stack_frame_entry->address)) {
+    return;
+  }
 
-void Module::AddStackFrameEntry(StackFrameEntry *stack_frame_entry) {
   stack_frame_entries_.push_back(stack_frame_entry);
 }
 
-void Module::AddExtern(Extern *ext) {
+void Module::AddExtern(Extern* ext) {
+  if (!AddressIsInModule(ext->address)) {
+    return;
+  }
+
   std::pair<ExternSet::iterator,bool> ret = externs_.insert(ext);
   if (!ret.second) {
     // Free the duplicate that was not inserted because this Module
@@ -135,17 +207,17 @@ void Module::AddExtern(Extern *ext) {
   }
 }
 
-void Module::GetFunctions(vector<Function *> *vec,
-                          vector<Function *>::iterator i) {
+void Module::GetFunctions(vector<Function*>* vec,
+                          vector<Function*>::iterator i) {
   vec->insert(i, functions_.begin(), functions_.end());
 }
 
-void Module::GetExterns(vector<Extern *> *vec,
-                        vector<Extern *>::iterator i) {
+void Module::GetExterns(vector<Extern*>* vec,
+                        vector<Extern*>::iterator i) {
   vec->insert(i, externs_.begin(), externs_.end());
 }
 
-Module::File *Module::FindFile(const string &name) {
+Module::File* Module::FindFile(const string& name) {
   // A tricky bit here.  The key of each map entry needs to be a
   // pointer to the entry's File's name string.  This means that we
   // can't do the initial lookup with any operation that would create
@@ -159,7 +231,7 @@ Module::File *Module::FindFile(const string &name) {
   FileByNameMap::iterator destiny = files_.lower_bound(&name);
   if (destiny == files_.end()
       || *destiny->first != name) {  // Repeated string comparison, boo hoo.
-    File *file = new File(name);
+    File* file = new File(name);
     file->source_id = -1;
     destiny = files_.insert(destiny,
                             FileByNameMap::value_type(&file->name, file));
@@ -167,27 +239,28 @@ Module::File *Module::FindFile(const string &name) {
   return destiny->second;
 }
 
-Module::File *Module::FindFile(const char *name) {
+Module::File* Module::FindFile(const char* name) {
   string name_string = name;
   return FindFile(name_string);
 }
 
-Module::File *Module::FindExistingFile(const string &name) {
+Module::File* Module::FindExistingFile(const string& name) {
   FileByNameMap::iterator it = files_.find(&name);
   return (it == files_.end()) ? NULL : it->second;
 }
 
-void Module::GetFiles(vector<File *> *vec) {
+void Module::GetFiles(vector<File*>* vec) {
   vec->clear();
   for (FileByNameMap::iterator it = files_.begin(); it != files_.end(); ++it)
     vec->push_back(it->second);
 }
 
-void Module::GetStackFrameEntries(vector<StackFrameEntry *> *vec) const {
+void Module::GetStackFrameEntries(vector<StackFrameEntry*>* vec) const {
   *vec = stack_frame_entries_;
 }
 
-void Module::AssignSourceIds() {
+void Module::AssignSourceIds(
+    set<InlineOrigin*, InlineOriginCompare>& inline_origins) {
   // First, give every source file an id of -1.
   for (FileByNameMap::iterator file_it = files_.begin();
        file_it != files_.end(); ++file_it) {
@@ -198,11 +271,18 @@ void Module::AssignSourceIds() {
   // info, by setting each one's source id to zero.
   for (FunctionSet::const_iterator func_it = functions_.begin();
        func_it != functions_.end(); ++func_it) {
-    Function *func = *func_it;
+    Function* func = *func_it;
     for (vector<Line>::iterator line_it = func->lines.begin();
          line_it != func->lines.end(); ++line_it)
       line_it->file->source_id = 0;
   }
+  // Also mark all files cited by inline functions by setting each one's source
+  // id to zero.
+  for (InlineOrigin* origin : inline_origins)
+    // There are some artificial inline functions which don't belong to
+    // any file. Those will have file id -1.
+    if (origin->file)
+      origin->file->source_id = 0;
 
   // Finally, assign source ids to those files that have been marked.
   // We could have just assigned source id numbers while traversing
@@ -216,13 +296,41 @@ void Module::AssignSourceIds() {
   }
 }
 
+static void InlineDFS(
+    vector<unique_ptr<Module::Inline>>& inlines,
+    std::function<void(unique_ptr<Module::Inline>&)> const& forEach) {
+  for (unique_ptr<Module::Inline>& in : inlines) {
+    forEach(in);
+    InlineDFS(in->child_inlines, forEach);
+  }
+}
+
+void Module::CreateInlineOrigins(
+    set<InlineOrigin*, InlineOriginCompare>& inline_origins) {
+  // Only add origins that have file and deduplicate origins with same name and
+  // file id by doing a DFS.
+  auto addInlineOrigins = [&](unique_ptr<Inline>& in) {
+    auto it = inline_origins.find(in->origin);
+    if (it == inline_origins.end())
+      inline_origins.insert(in->origin);
+    else
+      in->origin = *it;
+  };
+  for (Function* func : functions_)
+    InlineDFS(func->inlines, addInlineOrigins);
+  int next_id = 0;
+  for (InlineOrigin* origin : inline_origins) {
+    origin->id = next_id++;
+  }
+}
+
 bool Module::ReportError() {
   fprintf(stderr, "error writing symbol file: %s\n",
           strerror(errno));
   return false;
 }
 
-bool Module::WriteRuleMap(const RuleMap &rule_map, std::ostream &stream) {
+bool Module::WriteRuleMap(const RuleMap& rule_map, std::ostream& stream) {
   for (RuleMap::const_iterator it = rule_map.begin();
        it != rule_map.end(); ++it) {
     if (it != rule_map.begin())
@@ -232,7 +340,20 @@ bool Module::WriteRuleMap(const RuleMap &rule_map, std::ostream &stream) {
   return stream.good();
 }
 
-bool Module::Write(std::ostream &stream, SymbolData symbol_data) {
+bool Module::AddressIsInModule(Address address) const {
+  if (address_ranges_.empty()) {
+    return true;
+  }
+  for (const auto& segment : address_ranges_) {
+    if (address >= segment.address &&
+        address < segment.address + segment.size) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Module::Write(std::ostream& stream, SymbolData symbol_data) {
   stream << "MODULE " << os_ << " " << architecture_ << " "
          << id_ << " " << name_ << "\n";
   if (!stream.good())
@@ -242,24 +363,34 @@ bool Module::Write(std::ostream &stream, SymbolData symbol_data) {
     stream << "INFO CODE_ID " << code_id_ << "\n";
   }
 
-  if (symbol_data != ONLY_CFI) {
-    AssignSourceIds();
+  if (symbol_data & SYMBOLS_AND_FILES) {
+    // Get all referenced inline origins.
+    set<InlineOrigin*, InlineOriginCompare> inline_origins;
+    CreateInlineOrigins(inline_origins);
+    AssignSourceIds(inline_origins);
 
     // Write out files.
     for (FileByNameMap::iterator file_it = files_.begin();
          file_it != files_.end(); ++file_it) {
-      File *file = file_it->second;
+      File* file = file_it->second;
       if (file->source_id >= 0) {
         stream << "FILE " << file->source_id << " " <<  file->name << "\n";
         if (!stream.good())
           return ReportError();
       }
     }
+    // Write out inline origins.
+    for (InlineOrigin* origin : inline_origins) {
+      stream << "INLINE_ORIGIN " << origin->id << " " << origin->getFileID()
+             << " " << origin->name << "\n";
+      if (!stream.good())
+        return ReportError();
+    }
 
-    // Write out functions and their lines.
+    // Write out functions and their inlines and lines.
     for (FunctionSet::const_iterator func_it = functions_.begin();
          func_it != functions_.end(); ++func_it) {
-      Function *func = *func_it;
+      Function* func = *func_it;
       vector<Line>::iterator line_it = func->lines.begin();
       for (auto range_it = func->ranges.cbegin();
            range_it != func->ranges.cend(); ++range_it) {
@@ -269,6 +400,19 @@ bool Module::Write(std::ostream &stream, SymbolData symbol_data) {
                << func->parameter_size << " "
                << func->name << dec << "\n";
 
+        if (!stream.good())
+          return ReportError();
+
+        // Write out inlines.
+        auto write_inline = [&](unique_ptr<Inline>& in) {
+          stream << "INLINE ";
+          stream << in->inline_nest_level << " " << in->call_site_line << " "
+                 << in->origin->id << hex;
+          for (const Range& r : in->ranges)
+            stream << " " << (r.address - load_address_) << " " << r.size;
+          stream << dec << "\n";
+        };
+        InlineDFS(func->inlines, write_inline);
         if (!stream.good())
           return ReportError();
 
@@ -293,19 +437,19 @@ bool Module::Write(std::ostream &stream, SymbolData symbol_data) {
     // Write out 'PUBLIC' records.
     for (ExternSet::const_iterator extern_it = externs_.begin();
          extern_it != externs_.end(); ++extern_it) {
-      Extern *ext = *extern_it;
+      Extern* ext = *extern_it;
       stream << "PUBLIC " << hex
              << (ext->address - load_address_) << " 0 "
              << ext->name << dec << "\n";
     }
   }
 
-  if (symbol_data != NO_CFI) {
+  if (symbol_data & CFI) {
     // Write out 'STACK CFI INIT' and 'STACK CFI' records.
-    vector<StackFrameEntry *>::const_iterator frame_it;
+    vector<StackFrameEntry*>::const_iterator frame_it;
     for (frame_it = stack_frame_entries_.begin();
          frame_it != stack_frame_entries_.end(); ++frame_it) {
-      StackFrameEntry *entry = *frame_it;
+      StackFrameEntry* entry = *frame_it;
       stream << "STACK CFI INIT " << hex
              << (entry->address - load_address_) << " "
              << entry->size << " " << dec;

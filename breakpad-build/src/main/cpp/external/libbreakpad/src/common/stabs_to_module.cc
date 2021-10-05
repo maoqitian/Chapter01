@@ -45,7 +45,7 @@ namespace google_breakpad {
 
 // Demangle using abi call.
 // Older GCC may not support it.
-static string Demangle(const string &mangled) {
+static string Demangle(const string& mangled) {
   int status = 0;
   char *demangled = abi::__cxa_demangle(mangled.c_str(), NULL, NULL, &status);
   if (status == 0 && demangled != NULL) {
@@ -58,7 +58,7 @@ static string Demangle(const string &mangled) {
 
 StabsToModule::~StabsToModule() {
   // Free any functions we've accumulated but not added to the module.
-  for (vector<Module::Function *>::const_iterator func_it = functions_.begin();
+  for (vector<Module::Function*>::const_iterator func_it = functions_.begin();
        func_it != functions_.end(); func_it++)
     delete *func_it;
   // Free any function that we're currently within.
@@ -87,10 +87,11 @@ bool StabsToModule::EndCompilationUnit(uint64_t address) {
   return true;
 }
 
-bool StabsToModule::StartFunction(const string &name,
+bool StabsToModule::StartFunction(const string& name,
                                   uint64_t address) {
   assert(!current_function_);
-  Module::Function *f = new Module::Function(Demangle(name), address);
+  Module::Function* f =
+      new Module::Function(module_->AddStringToPool(Demangle(name)), address);
   Module::Range r(address, 0); // We compute this in StabsToModule::Finalize().
   f->ranges.push_back(r);
   f->parameter_size = 0; // We don't provide this information.
@@ -131,7 +132,7 @@ bool StabsToModule::Line(uint64_t address, const char *name, int number) {
   return true;
 }
 
-bool StabsToModule::Extern(const string &name, uint64_t address) {
+bool StabsToModule::Extern(const string& name, uint64_t address) {
   Module::Extern *ext = new Module::Extern(address);
   // Older libstdc++ demangle implementations can crash on unexpected
   // input, so be careful about what gets passed in.
@@ -160,7 +161,7 @@ void StabsToModule::Finalize() {
   sort(functions_.begin(), functions_.end(),
        Module::Function::CompareByAddress);
 
-  for (vector<Module::Function *>::const_iterator func_it = functions_.begin();
+  for (vector<Module::Function*>::const_iterator func_it = functions_.begin();
        func_it != functions_.end();
        func_it++) {
     Module::Function *f = *func_it;
@@ -192,7 +193,8 @@ void StabsToModule::Finalize() {
   }
   // Now that everything has a size, add our functions to the module, and
   // dispose of our private list.
-  module_->AddFunctions(functions_.begin(), functions_.end());
+  for (Module::Function* func: functions_)
+    module_->AddFunction(func);
   functions_.clear();
 }
 

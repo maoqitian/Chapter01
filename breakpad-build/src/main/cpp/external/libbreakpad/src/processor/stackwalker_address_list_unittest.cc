@@ -56,6 +56,7 @@ using google_breakpad::StackwalkerAddressList;
 using std::vector;
 using testing::_;
 using testing::AnyNumber;
+using testing::DoAll;
 using testing::Return;
 using testing::SetArgumentPointee;
 
@@ -94,9 +95,9 @@ class StackwalkerAddressListTest : public testing::Test {
 
   // Set the Breakpad symbol information that supplier should return for
   // MODULE to INFO.
-  void SetModuleSymbols(MockCodeModule *module, const string &info) {
+  void SetModuleSymbols(MockCodeModule* module, const string& info) {
     size_t buffer_size;
-    char *buffer = supplier.CopySymbolDataAndOwnTheCopy(info, &buffer_size);
+    char* buffer = supplier.CopySymbolDataAndOwnTheCopy(info, &buffer_size);
     EXPECT_CALL(supplier, GetCStringSymbolData(module, NULL, _, _, _))
       .WillRepeatedly(DoAll(SetArgumentPointee<3>(buffer),
                             SetArgumentPointee<4>(buffer_size),

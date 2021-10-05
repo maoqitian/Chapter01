@@ -1,0 +1,3 @@
+/Users/maoqitian/AndroidWorkSpace/Chapter01/sample/.cxx/Debug/5w3z5q15/armeabi-v7a/CMakeFiles/rebuild_cache.dir
+/Users/maoqitian/AndroidWorkSpace/Chapter01/sample/.cxx/Debug/5w3z5q15/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/maoqitian/AndroidWorkSpace/Chapter01/sample/.cxx/Debug/5w3z5q15/armeabi-v7a/CMakeFiles/crash-lib.dir

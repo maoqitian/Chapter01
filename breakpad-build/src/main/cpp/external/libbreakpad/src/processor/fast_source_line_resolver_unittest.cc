@@ -94,15 +94,15 @@ class TestCodeModule : public CodeModule {
 class MockMemoryRegion: public MemoryRegion {
   uint64_t GetBase() const { return 0x10000; }
   uint32_t GetSize() const { return 0x01000; }
-  bool GetMemoryAtAddress(uint64_t address, uint8_t *value) const {
+  bool GetMemoryAtAddress(uint64_t address, uint8_t* value) const {
     *value = address & 0xff;
     return true;
   }
-  bool GetMemoryAtAddress(uint64_t address, uint16_t *value) const {
+  bool GetMemoryAtAddress(uint64_t address, uint16_t* value) const {
     *value = address & 0xffff;
     return true;
   }
-  bool GetMemoryAtAddress(uint64_t address, uint32_t *value) const {
+  bool GetMemoryAtAddress(uint64_t address, uint32_t* value) const {
     switch (address) {
       case 0x10008: *value = 0x98ecadc3; break;  // saved %ebx
       case 0x1000c: *value = 0x878f7524; break;  // saved %esi
@@ -113,7 +113,7 @@ class MockMemoryRegion: public MemoryRegion {
     }
     return true;
   }
-  bool GetMemoryAtAddress(uint64_t address, uint64_t *value) const {
+  bool GetMemoryAtAddress(uint64_t address, uint64_t* value) const {
     *value = address;
     return true;
   }
@@ -127,9 +127,9 @@ class MockMemoryRegion: public MemoryRegion {
 // EXPECTED's.) Also verify that ACTUAL has associations for ".ra" and
 // ".cfa".
 static bool VerifyRegisters(
-    const char *file, int line,
-    const CFIFrameInfo::RegisterValueMap<uint32_t> &expected,
-    const CFIFrameInfo::RegisterValueMap<uint32_t> &actual) {
+    const char* file, int line,
+    const CFIFrameInfo::RegisterValueMap<uint32_t>& expected,
+    const CFIFrameInfo::RegisterValueMap<uint32_t>& actual) {
   CFIFrameInfo::RegisterValueMap<uint32_t>::const_iterator a;
   a = actual.find(".cfa");
   if (a == actual.end())
@@ -158,7 +158,7 @@ static bool VerifyRegisters(
   return true;
 }
 
-static bool VerifyEmpty(const StackFrame &frame) {
+static bool VerifyEmpty(const StackFrame& frame) {
   if (frame.function_name.empty() &&
       frame.source_file_name.empty() &&
       frame.source_line == 0)
@@ -166,7 +166,7 @@ static bool VerifyEmpty(const StackFrame &frame) {
   return false;
 }
 
-static void ClearSourceLineInfo(StackFrame *frame) {
+static void ClearSourceLineInfo(StackFrame* frame) {
   frame->function_name.clear();
   frame->module = NULL;
   frame->source_file_name.clear();
@@ -217,7 +217,7 @@ TEST_F(TestFastSourceLineResolver, TestLoadAndResolve) {
   scoped_ptr<CFIFrameInfo> cfi_frame_info;
   frame.instruction = 0x1000;
   frame.module = NULL;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_FALSE(frame.module);
   ASSERT_TRUE(frame.function_name.empty());
   ASSERT_EQ(frame.function_base, 0U);
@@ -226,7 +226,7 @@ TEST_F(TestFastSourceLineResolver, TestLoadAndResolve) {
   ASSERT_EQ(frame.source_line_base, 0U);
 
   frame.module = &module1;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_EQ(frame.function_name, "Function1_1");
   ASSERT_TRUE(frame.module);
   ASSERT_EQ(frame.module->code_file(), "module1");
@@ -243,13 +243,13 @@ TEST_F(TestFastSourceLineResolver, TestLoadAndResolve) {
   ClearSourceLineInfo(&frame);
   frame.instruction = 0x800;
   frame.module = &module1;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_TRUE(VerifyEmpty(frame));
   windows_frame_info.reset(fast_resolver.FindWindowsFrameInfo(&frame));
   ASSERT_FALSE(windows_frame_info.get());
 
   frame.instruction = 0x1280;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_EQ(frame.function_name, "Function1_3");
   ASSERT_TRUE(frame.source_file_name.empty());
   ASSERT_EQ(frame.source_line, 0);
@@ -260,7 +260,7 @@ TEST_F(TestFastSourceLineResolver, TestLoadAndResolve) {
   ASSERT_TRUE(windows_frame_info->program_string.empty());
 
   frame.instruction = 0x1380;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_EQ(frame.function_name, "Function1_4");
   ASSERT_TRUE(frame.source_file_name.empty());
   ASSERT_EQ(frame.source_line, 0);
@@ -369,17 +369,17 @@ TEST_F(TestFastSourceLineResolver, TestLoadAndResolve) {
 
   frame.instruction = 0x2900;
   frame.module = &module1;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_EQ(frame.function_name, string("PublicSymbol"));
 
   frame.instruction = 0x4000;
   frame.module = &module1;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_EQ(frame.function_name, string("LargeFunction"));
 
   frame.instruction = 0x2181;
   frame.module = &module2;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_EQ(frame.function_name, "Function2_2");
   ASSERT_EQ(frame.function_base, 0x2170U);
   ASSERT_TRUE(frame.module);
@@ -393,18 +393,18 @@ TEST_F(TestFastSourceLineResolver, TestLoadAndResolve) {
   ASSERT_EQ(windows_frame_info->prolog_size, 1U);
 
   frame.instruction = 0x216f;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_EQ(frame.function_name, "Public2_1");
 
   ClearSourceLineInfo(&frame);
   frame.instruction = 0x219f;
   frame.module = &module2;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_TRUE(frame.function_name.empty());
 
   frame.instruction = 0x21a0;
   frame.module = &module2;
-  fast_resolver.FillSourceLineInfo(&frame);
+  fast_resolver.FillSourceLineInfo(&frame, nullptr);
   ASSERT_EQ(frame.function_name, "Public2_2");
 }
 
@@ -467,7 +467,7 @@ TEST_F(TestFastSourceLineResolver, TestUnload) {
 }
 
 TEST_F(TestFastSourceLineResolver, CompareModule) {
-  char *symbol_data;
+  char* symbol_data;
   size_t symbol_data_size;
   string symbol_data_string;
   string filename;
@@ -486,7 +486,7 @@ TEST_F(TestFastSourceLineResolver, CompareModule) {
 
 }  // namespace
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

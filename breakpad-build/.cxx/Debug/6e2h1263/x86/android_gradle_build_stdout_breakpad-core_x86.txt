@@ -1,0 +1,11 @@
+ninja: Entering directory `/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/x86'
+[1/10] Building CXX object external/libbreakpad/CMakeFiles/breakpad.dir/src/common/linux/linux_libc_support.cc.o
+[2/10] Building C object external/libbreakpad/CMakeFiles/breakpad.dir/src/common/convert_UTF.c.o
+[3/10] Building CXX object external/libbreakpad/CMakeFiles/breakpad.dir/src/common/linux/safe_readlink.cc.o
+[4/10] Building CXX object external/libbreakpad/CMakeFiles/breakpad.dir/src/common/linux/memory_mapped_file.cc.o
+[5/10] Building CXX object external/libbreakpad/CMakeFiles/breakpad.dir/src/common/linux/guid_creator.cc.o
+[6/10] Building CXX object external/libbreakpad/CMakeFiles/breakpad.dir/src/common/linux/elfutils.cc.o
+[7/10] Building CXX object external/libbreakpad/CMakeFiles/breakpad.dir/src/common/string_conversion.cc.o
+[8/10] Building CXX object external/libbreakpad/CMakeFiles/breakpad.dir/src/common/linux/file_id.cc.o
+[9/10] Linking CXX static library external/libbreakpad/libbreakpad.a
+[10/10] Linking CXX shared library /Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/build/intermediates/cxx/Debug/6e2h1263/obj/x86/libbreakpad-core.so

@@ -110,7 +110,10 @@ int PrintMicrodumpProcess(const Options& options) {
     if (options.machine_readable) {
       PrintProcessStateMachineReadable(process_state);
     } else {
-      PrintProcessState(process_state, options.output_stack_contents, &resolver);
+      // Microdump has only one thread, |output_requesting_thread_only|'s value
+      // has no effect.
+      PrintProcessState(process_state, options.output_stack_contents,
+                        /*output_requesting_thread_only=*/false, &resolver);
     }
     return 0;
   }
@@ -140,7 +143,7 @@ static void SetupOptions(int argc, const char *argv[], Options* options) {
   options->machine_readable = false;
   options->output_stack_contents = false;
 
-  while ((ch = getopt(argc, (char * const *)argv, "hms")) != -1) {
+  while ((ch = getopt(argc, (char * const*)argv, "hms")) != -1) {
     switch (ch) {
       case 'h':
         Usage(argc, argv, false);

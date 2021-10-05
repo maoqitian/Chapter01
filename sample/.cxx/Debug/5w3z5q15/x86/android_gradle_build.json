@@ -1,0 +1,40 @@
+{
+  "stringTable": {},
+  "buildFiles": [
+    "/Users/maoqitian/AndroidWorkSpace/Chapter01/sample/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/maoqitian/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja",
+      "-C",
+      "/Users/maoqitian/AndroidWorkSpace/Chapter01/sample/.cxx/Debug/5w3z5q15/x86",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/maoqitian/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja",
+    "-C",
+    "/Users/maoqitian/AndroidWorkSpace/Chapter01/sample/.cxx/Debug/5w3z5q15/x86",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "crash-lib-Debug-x86": {
+      "buildCommandComponents": [
+        "/Users/maoqitian/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja",
+        "-C",
+        "/Users/maoqitian/AndroidWorkSpace/Chapter01/sample/.cxx/Debug/5w3z5q15/x86",
+        "crash-lib"
+      ],
+      "buildType": "debug",
+      "abi": "x86",
+      "artifactName": "crash-lib",
+      "output": "/Users/maoqitian/AndroidWorkSpace/Chapter01/sample/build/intermediates/cxx/Debug/5w3z5q15/obj/x86/libcrash-lib.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {},
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

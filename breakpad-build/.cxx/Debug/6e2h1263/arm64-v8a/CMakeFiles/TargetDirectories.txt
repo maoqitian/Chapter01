@@ -1,0 +1,6 @@
+/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a/CMakeFiles/rebuild_cache.dir
+/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a/CMakeFiles/breakpad-core.dir
+/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a/external/libbreakpad/CMakeFiles/rebuild_cache.dir
+/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a/external/libbreakpad/CMakeFiles/edit_cache.dir
+/Users/maoqitian/AndroidWorkSpace/Chapter01/breakpad-build/.cxx/Debug/6e2h1263/arm64-v8a/external/libbreakpad/CMakeFiles/breakpad.dir

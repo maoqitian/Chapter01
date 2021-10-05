@@ -1,0 +1,2 @@
+ninja: Entering directory `/Users/maoqitian/AndroidWorkSpace/Chapter01/sample/.cxx/Debug/5w3z5q15/x86'
+ninja: no work to do.

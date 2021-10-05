@@ -74,7 +74,7 @@ public class MainActivity extends Activity {
     }
 
     private void initExternalReportPath() {
-        externalReportPath = new File(Environment.getExternalStorageDirectory(), "crashDump");
+        externalReportPath = new File(getCacheDir(), "crashDump");
         if (!externalReportPath.exists()) {
             externalReportPath.mkdirs();
         }
